@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -6,6 +7,8 @@ import 'models.dart';
 
 class ApiClient {
   ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? '';
+
+  static const _requestTimeout = Duration(seconds: 10);
 
   String baseUrl;
   String? token;
@@ -175,7 +178,7 @@ class ApiClient {
     bool includeAuth = true,
   }) async {
     if (baseUrl.trim().isEmpty) {
-      throw DmsException('Configura la URL de la API');
+      throw DmsException('No se pudo conectar con el servidor.');
     }
 
     final uri = _uri(path, query);
@@ -189,14 +192,31 @@ class ApiClient {
     final encodedBody = body == null ? null : jsonEncode(_cleanBody(body));
     try {
       response = switch (method) {
-        'GET' => await http.get(uri, headers: headers),
-        'POST' => await http.post(uri, headers: headers, body: encodedBody),
-        'PUT' => await http.put(uri, headers: headers, body: encodedBody),
-        'DELETE' => await http.delete(uri, headers: headers),
+        'GET' => await http.get(uri, headers: headers).timeout(_requestTimeout),
+        'POST' =>
+          await http
+              .post(uri, headers: headers, body: encodedBody)
+              .timeout(_requestTimeout),
+        'PUT' =>
+          await http
+              .put(uri, headers: headers, body: encodedBody)
+              .timeout(_requestTimeout),
+        'DELETE' =>
+          await http.delete(uri, headers: headers).timeout(_requestTimeout),
         _ => throw DmsException('Metodo HTTP no soportado: $method'),
       };
-    } on http.ClientException catch (error) {
-      throw DmsException('No se pudo conectar con la API: ${error.message}');
+    } on TimeoutException {
+      throw DmsException(
+        'No se pudo conectar con el servidor. Verifica la red e intenta de nuevo.',
+      );
+    } on http.ClientException {
+      throw DmsException(
+        'No se pudo conectar con el servidor. Verifica la red e intenta de nuevo.',
+      );
+    } catch (_) {
+      throw DmsException(
+        'No se pudo conectar con el servidor. Verifica la red e intenta de nuevo.',
+      );
     }
 
     final decoded = response.body.isEmpty ? null : jsonDecode(response.body);

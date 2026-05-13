@@ -9,7 +9,8 @@ class AppState extends ChangeNotifier {
 
   static const _tokenKey = 'dms_token';
   static const _userKey = 'dms_user';
-  static const _apiKey = 'dms_api_base_url';
+  static const _legacyApiKey = 'dms_api_base_url';
+  static const _fixedApiBaseUrl = 'http://192.168.1.10:5000/api';
 
   final ApiClient api;
 
@@ -22,7 +23,8 @@ class AppState extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    apiBaseUrl = prefs.getString(_apiKey) ?? defaultApiBaseUrl();
+    apiBaseUrl = defaultApiBaseUrl();
+    await prefs.remove(_legacyApiKey);
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
     token = null;
@@ -37,9 +39,8 @@ class AppState extends ChangeNotifier {
   Future<void> login({
     required String username,
     required String password,
-    required String apiUrl,
   }) async {
-    apiBaseUrl = _normalizeApiUrl(apiUrl);
+    apiBaseUrl = defaultApiBaseUrl();
     api.baseUrl = apiBaseUrl;
 
     final data = await api.login(username: username, password: password);
@@ -48,7 +49,7 @@ class AppState extends ChangeNotifier {
     api.token = token;
 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_apiKey, apiBaseUrl);
+    await prefs.remove(_legacyApiKey);
     await prefs.remove(_tokenKey);
     await prefs.remove(_userKey);
     notifyListeners();
@@ -64,23 +65,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> saveApiBaseUrl(String value) async {
-    apiBaseUrl = _normalizeApiUrl(value);
-    api.baseUrl = apiBaseUrl;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_apiKey, apiBaseUrl);
-    notifyListeners();
-  }
-
   static String defaultApiBaseUrl() {
-    return 'http://192.168.1.10:5000/api';
-  }
-
-  String _normalizeApiUrl(String value) {
-    var clean = value.trim();
-    while (clean.endsWith('/')) {
-      clean = clean.substring(0, clean.length - 1);
-    }
-    return clean;
+    return _fixedApiBaseUrl;
   }
 }

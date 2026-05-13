@@ -18,21 +18,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
-  late final TextEditingController _apiController;
   bool _loading = false;
-  bool _showServer = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _apiController = TextEditingController(text: widget.appState.apiBaseUrl);
-  }
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
-    _apiController.dispose();
     super.dispose();
   }
 
@@ -50,11 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: _BrandPanel(
-                            apiUrl: widget.appState.apiBaseUrl,
-                          ),
-                        ),
+                        const Expanded(child: _BrandPanel()),
                         const SizedBox(width: 24),
                         SizedBox(width: 420, child: _loginPanel()),
                       ],
@@ -112,35 +99,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 validator: (value) =>
                     value == null || value.isEmpty ? 'Ingresa el PIN' : null,
               ),
-              const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: () => setState(() => _showServer = !_showServer),
-                icon: Icon(
-                  _showServer ? Icons.expand_less : Icons.settings_ethernet,
-                ),
-                label: Text(
-                  _showServer ? 'Ocultar servidor' : 'Configurar servidor API',
-                ),
-              ),
-              if (_showServer) ...[
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _apiController,
-                  decoration: const InputDecoration(
-                    labelText: 'URL API',
-                    helperText: 'Ejemplo: http://192.168.1.10:5000/api',
-                  ),
-                  validator: (value) {
-                    final text = value?.trim() ?? '';
-                    if (text.isEmpty) return 'Configura la URL de la API';
-                    final uri = Uri.tryParse(text);
-                    if (uri == null || !uri.hasScheme || uri.host.isEmpty) {
-                      return 'URL invalida';
-                    }
-                    return null;
-                  },
-                ),
-              ],
               const SizedBox(height: 20),
               FilledButton.icon(
                 onPressed: _loading ? null : _submit,
@@ -167,7 +125,6 @@ class _LoginScreenState extends State<LoginScreen> {
       await widget.appState.login(
         username: _usernameController.text.trim(),
         password: _passwordController.text,
-        apiUrl: _apiController.text,
       );
     } on DmsException catch (error) {
       if (mounted) {
@@ -175,11 +132,14 @@ class _LoginScreenState extends State<LoginScreen> {
           context,
         ).showSnackBar(snack(error.message, error: true));
       }
-    } catch (error) {
+    } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(snack('$error', error: true));
+        ScaffoldMessenger.of(context).showSnackBar(
+          snack(
+            'No se pudo conectar con el servidor. Verifica la red e intenta de nuevo.',
+            error: true,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -188,9 +148,7 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 class _BrandPanel extends StatelessWidget {
-  const _BrandPanel({required this.apiUrl});
-
-  final String apiUrl;
+  const _BrandPanel();
 
   @override
   Widget build(BuildContext context) {
@@ -214,7 +172,7 @@ class _BrandPanel extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Text(
-            'Version Flutter para telefonos, laptops y estaciones Windows. Usa la misma API del DMS actual.',
+            'Version Flutter para telefonos, laptops y estaciones Windows.',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 28),
@@ -226,11 +184,6 @@ class _BrandPanel extends StatelessWidget {
               _Chip(icon: Icons.laptop_windows, label: 'Windows'),
               _Chip(icon: Icons.qr_code_scanner, label: 'Escaneo compatible'),
             ],
-          ),
-          const SizedBox(height: 28),
-          Text(
-            'API actual: $apiUrl',
-            style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),

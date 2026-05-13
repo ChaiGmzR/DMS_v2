@@ -18,5 +18,7 @@ void main() {
 
     expect(find.text('DMS'), findsOneWidget);
     expect(find.text('Iniciar sesion'), findsOneWidget);
+    expect(find.textContaining('servidor'), findsNothing);
+    expect(find.textContaining('192.168.1.10'), findsNothing);
   });
 }

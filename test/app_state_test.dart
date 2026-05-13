@@ -22,6 +22,8 @@ void main() {
     expect(appState.api.token, isNull);
     expect(prefs.getString('dms_token'), isNull);
     expect(prefs.getString('dms_user'), isNull);
-    expect(prefs.getString('dms_api_base_url'), 'http://192.168.1.10:5000/api');
+    expect(prefs.getString('dms_api_base_url'), isNull);
+    expect(appState.apiBaseUrl, 'http://192.168.1.10:5000/api');
+    expect(appState.api.baseUrl, 'http://192.168.1.10:5000/api');
   });
 }
