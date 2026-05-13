@@ -19,19 +19,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
     super.initState();
     _controller = MobileScannerController(
       autoZoom: true,
-      cameraResolution: const Size(1280, 720),
-      detectionSpeed: DetectionSpeed.normal,
-      detectionTimeoutMs: 250,
-      formats: const [
-        BarcodeFormat.qrCode,
-        BarcodeFormat.code128,
-        BarcodeFormat.code39,
-        BarcodeFormat.code93,
-        BarcodeFormat.ean13,
-        BarcodeFormat.ean8,
-        BarcodeFormat.upcA,
-        BarcodeFormat.upcE,
-      ],
+      detectionSpeed: DetectionSpeed.unrestricted,
+      formats: const [BarcodeFormat.all],
     );
   }
 
@@ -65,6 +54,22 @@ class _ScannerScreenState extends State<ScannerScreen> {
             controller: _controller,
             fit: BoxFit.cover,
             tapToFocus: true,
+            placeholderBuilder: (_) => const ColoredBox(
+              color: Colors.black,
+              child: Center(child: Text('Iniciando camara...')),
+            ),
+            errorBuilder: (_, error) => ColoredBox(
+              color: Colors.black,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Camara no disponible: ${error.errorCode.message}',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
             onDetect: (capture) {
               if (_returned) return;
               final value = capture.barcodes

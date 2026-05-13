@@ -45,6 +45,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
   bool _saving = false;
   bool _listExpanded = false;
   bool _scanLocked = false;
+  String _scanStatus = 'Apunta la camara al QR o codigo';
 
   DateTime _fecha = DateTime.now();
   String? _linea;
@@ -62,19 +63,8 @@ class _DefectsScreenState extends State<DefectsScreen> {
     super.initState();
     _scannerController = MobileScannerController(
       autoZoom: true,
-      cameraResolution: const Size(1280, 720),
-      detectionSpeed: DetectionSpeed.normal,
-      detectionTimeoutMs: 250,
-      formats: const [
-        BarcodeFormat.qrCode,
-        BarcodeFormat.code128,
-        BarcodeFormat.code39,
-        BarcodeFormat.code93,
-        BarcodeFormat.ean13,
-        BarcodeFormat.ean8,
-        BarcodeFormat.upcA,
-        BarcodeFormat.upcE,
-      ],
+      detectionSpeed: DetectionSpeed.unrestricted,
+      formats: const [BarcodeFormat.all],
     );
     _load();
   }
@@ -623,10 +613,23 @@ class _DefectsScreenState extends State<DefectsScreen> {
               fit: BoxFit.cover,
               tapToFocus: true,
               onDetect: _onDetect,
+              onDetectError: (error, _) =>
+                  _setScanStatus('Error al decodificar: ${error.toString()}'),
+              placeholderBuilder: (_) => _scannerMessage('Iniciando camara...'),
+              errorBuilder: (_, error) => _scannerMessage(
+                'Camara no disponible: ${error.errorCode.message}',
+              ),
             )
           else
             _manualScannerFallback(),
           Center(child: _scanCorners(size: cornerSize ?? (large ? 256 : 132))),
+          if (supportsCameraScanner)
+            Positioned(
+              left: 10,
+              right: 10,
+              bottom: 10,
+              child: _scanStatusBadge(),
+            ),
           Positioned(
             top: large ? 16 : 12,
             right: large ? 16 : 12,
@@ -1641,8 +1644,16 @@ class _DefectsScreenState extends State<DefectsScreen> {
         .where((value) => value.trim().isNotEmpty)
         .firstOrNull;
     final code = rawCode == null ? null : extractPartCode(rawCode);
-    if (code == null) return;
     _scanLocked = true;
+    if (code == null) {
+      _setScanStatus('QR detectado sin codigo valido: ${_shortScan(rawCode)}');
+      Future.delayed(const Duration(milliseconds: 900), () {
+        _scanLocked = false;
+      });
+      return;
+    }
+
+    _setScanStatus('Codigo detectado: ${code.trim().toUpperCase()}');
     setState(() => _codigoController.text = code.trim().toUpperCase());
     unawaited(_lookupModel());
     try {
@@ -1669,6 +1680,50 @@ class _DefectsScreenState extends State<DefectsScreen> {
     _codigoController.value = TextEditingValue(
       text: upper,
       selection: TextSelection.collapsed(offset: upper.length),
+    );
+  }
+
+  void _setScanStatus(String value) {
+    if (!mounted) return;
+    setState(() => _scanStatus = value);
+  }
+
+  String _shortScan(String? value) {
+    final text = value?.trim() ?? '';
+    if (text.isEmpty) return 'sin datos';
+    return text.length <= 42 ? text : '${text.substring(0, 42)}...';
+  }
+
+  Widget _scanStatusBadge() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.68),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Text(
+          _scanStatus,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+        ),
+      ),
+    );
+  }
+
+  Widget _scannerMessage(String value) {
+    return Container(
+      color: Colors.black,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.all(16),
+      child: Text(
+        value,
+        textAlign: TextAlign.center,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
     );
   }
 }
