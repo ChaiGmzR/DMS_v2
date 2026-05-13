@@ -58,7 +58,10 @@ class _DefectsScreenState extends State<DefectsScreen> {
   void initState() {
     super.initState();
     _scannerController = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
+      autoZoom: true,
+      cameraResolution: const Size(1280, 720),
+      detectionSpeed: DetectionSpeed.normal,
+      detectionTimeoutMs: 250,
       formats: const [
         BarcodeFormat.qrCode,
         BarcodeFormat.code128,
@@ -86,8 +89,14 @@ class _DefectsScreenState extends State<DefectsScreen> {
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
+    final phone = width < 600;
     final portrait = width < 820;
-    final body = portrait ? _portraitLayout() : _landscapeLayout();
+    final desktop = !supportsCameraScanner && width >= 900;
+    final body = desktop
+        ? _desktopLayout()
+        : portrait
+        ? _portraitLayout(phone: phone)
+        : _landscapeLayout();
 
     if (!widget.showOwnChrome) {
       return body;
@@ -107,28 +116,55 @@ class _DefectsScreenState extends State<DefectsScreen> {
   }
 
   Widget _topBar({required bool portrait}) {
+    final desktop =
+        !supportsCameraScanner && MediaQuery.sizeOf(context).width >= 900;
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: _panel,
         border: Border(bottom: BorderSide(color: _line, width: 2)),
       ),
       child: SizedBox(
-        height: portrait ? 68 : 60,
+        height: desktop
+            ? 80
+            : portrait
+            ? 68
+            : 60,
         child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: portrait ? 18 : 16),
+          padding: EdgeInsets.symmetric(
+            horizontal: desktop
+                ? 8
+                : portrait
+                ? 18
+                : 16,
+          ),
           child: Row(
             children: [
               Container(
-                width: portrait ? 44 : 42,
-                height: portrait ? 44 : 42,
+                width: desktop
+                    ? 62
+                    : portrait
+                    ? 44
+                    : 42,
+                height: desktop
+                    ? 62
+                    : portrait
+                    ? 44
+                    : 42,
                 decoration: BoxDecoration(
                   color: const Color(0xFF0A8043),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFF1CC96F), width: 2),
+                  borderRadius: BorderRadius.circular(desktop ? 34 : 24),
+                  border: Border.all(
+                    color: const Color(0xFF1CC96F),
+                    width: desktop ? 3 : 2,
+                  ),
                 ),
-                child: const Icon(Icons.factory_outlined, color: Colors.white),
+                child: Icon(
+                  Icons.factory_outlined,
+                  color: Colors.white,
+                  size: desktop ? 34 : 24,
+                ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: desktop ? 10 : 8),
               Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,7 +172,11 @@ class _DefectsScreenState extends State<DefectsScreen> {
                   Text(
                     'DMS',
                     style: TextStyle(
-                      fontSize: portrait ? 20 : 22,
+                      fontSize: desktop
+                          ? 36
+                          : portrait
+                          ? 20
+                          : 22,
                       fontWeight: FontWeight.w900,
                       height: 1,
                     ),
@@ -152,7 +192,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
                 ],
               ),
               const Spacer(),
-              if (!portrait) ...[
+              if (!portrait && !desktop) ...[
                 SizedBox(
                   height: 40,
                   child: FilledButton(
@@ -176,16 +216,19 @@ class _DefectsScreenState extends State<DefectsScreen> {
                 const SizedBox(width: 12),
               ],
               if (widget.navigationMenu != null) widget.navigationMenu!,
-              IconButton.outlined(
-                tooltip: 'Cerrar sesion',
+              IconButton.filled(
+                tooltip: desktop ? 'Usuario / cerrar sesion' : 'Cerrar sesion',
                 onPressed: widget.appState.logout,
-                icon: const Icon(Icons.logout),
+                icon: Icon(desktop ? Icons.person : Icons.logout),
                 color: Colors.white,
                 style: IconButton.styleFrom(
-                  side: const BorderSide(color: _line),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  backgroundColor: desktop ? _green : null,
+                  side: desktop ? null : const BorderSide(color: _line),
+                  shape: desktop
+                      ? const CircleBorder()
+                      : RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                 ),
               ),
             ],
@@ -195,31 +238,219 @@ class _DefectsScreenState extends State<DefectsScreen> {
     );
   }
 
-  Widget _portraitLayout() {
-    return Stack(
+  Widget _portraitLayout({required bool phone}) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final horizontalPadding = phone ? 12.0 : 40.0;
+        final frameWidth = constraints.maxWidth - (horizontalPadding * 2);
+        final cameraHeight = phone
+            ? (frameWidth * 1.08).clamp(260.0, 430.0)
+            : (constraints.maxHeight * 0.58).clamp(360.0, 445.0);
+        final cornerSize = phone
+            ? (frameWidth * 0.58).clamp(150.0, 220.0)
+            : 256.0;
+
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  horizontalPadding,
+                  12,
+                  horizontalPadding,
+                  phone ? 108 : 128,
+                ),
+                child: Column(
+                  children: [
+                    _cameraFrame(
+                      height: cameraHeight,
+                      large: true,
+                      cornerSize: cornerSize,
+                    ),
+                    SizedBox(height: phone ? 18 : 86),
+                    _zoomPanel(),
+                  ],
+                ),
+              ),
+            ),
+            Positioned(
+              right: phone ? 16 : 24,
+              bottom: phone ? 16 : 24,
+              child: FloatingActionButton.large(
+                backgroundColor: _green,
+                onPressed: () => _showCaptureSheet(),
+                child: const Icon(Icons.add, size: 34),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _desktopLayout() {
+    return Row(
       children: [
-        Positioned.fill(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(40, 12, 40, 128),
-            child: Column(
-              children: [
-                _cameraFrame(height: 445, large: true),
-                const SizedBox(height: 86),
-                _zoomPanel(),
-              ],
+        SizedBox(width: 345, child: _desktopCapturePane()),
+        const VerticalDivider(width: 1, color: _line),
+        Expanded(child: _desktopListPane()),
+      ],
+    );
+  }
+
+  Widget _desktopCapturePane() {
+    return Container(
+      color: const Color(0xFF414553),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              height: 44,
+              color: _header,
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: const Text(
+                'Detalle del producto',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+              ),
+            ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(10, 14, 14, 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _desktopLabel('Fecha:'),
+                    _dateBox(compact: true),
+                    const SizedBox(height: 10),
+                    _desktopLabel('Linea:'),
+                    _desktopDropdown(
+                      value: _linea,
+                      hint: 'Seleccione linea',
+                      options: lineasDms,
+                      onChanged: (value) => setState(() => _linea = value),
+                      validator: (value) => value == null ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 10),
+                    _desktopLabel('Codigo de parte:'),
+                    TextFormField(
+                      controller: _codigoController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        hintText: 'Escanear o escribir',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: _required,
+                      onFieldSubmitted: (_) => _lookupModel(),
+                    ),
+                    const SizedBox(height: 10),
+                    _desktopLabel('Defecto:'),
+                    _desktopDropdown(
+                      value: _defecto,
+                      hint: 'Selecciona un defecto',
+                      options: defectosCatalogo,
+                      onChanged: (value) => setState(() => _defecto = value),
+                      validator: (value) => value == null ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 10),
+                    _desktopLabel('Ubicacion:'),
+                    TextFormField(
+                      controller: _ubicacionController,
+                      textCapitalization: TextCapitalization.characters,
+                      decoration: const InputDecoration(
+                        hintText: 'Ubicacion del defecto',
+                        isDense: true,
+                        border: OutlineInputBorder(),
+                      ),
+                      validator: _required,
+                    ),
+                    const SizedBox(height: 10),
+                    _desktopLabel('Area:'),
+                    _desktopDropdown(
+                      value: _area,
+                      hint: 'Seleccione area',
+                      options: areasDms,
+                      onChanged: (value) => setState(() => _area = value),
+                      validator: (value) => value == null ? 'Requerido' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 59),
+                        backgroundColor: _green,
+                      ),
+                      onPressed:
+                          widget.appState.user?.canCapture == true && !_saving
+                          ? _saveDefect
+                          : null,
+                      icon: const Icon(Icons.save_alt),
+                      label: const Text(
+                        'Capturar (F1)',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _desktopListPane() {
+    return Container(
+      color: _bg,
+      child: Column(
+        children: [
+          Container(
+            height: 44,
+            color: _header,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: const Text(
+              'Lista de defectos',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
             ),
           ),
-        ),
-        Positioned(
-          right: 24,
-          bottom: 24,
-          child: FloatingActionButton.large(
-            backgroundColor: _green,
-            onPressed: () => _showCaptureSheet(),
-            child: const Icon(Icons.add, size: 34),
+          Container(
+            width: double.infinity,
+            color: const Color(0xFF424452),
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: _filters(),
           ),
-        ),
-      ],
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _defects.isEmpty
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.inventory_2_outlined,
+                          size: 38,
+                          color: Color(0xFF59606C),
+                        ),
+                        SizedBox(height: 14),
+                        Text(
+                          'No hay defectos registrados',
+                          style: TextStyle(
+                            color: Color(0xFFB8C4CB),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : _desktopTable(),
+          ),
+        ],
+      ),
     );
   }
 
@@ -361,7 +592,11 @@ class _DefectsScreenState extends State<DefectsScreen> {
     );
   }
 
-  Widget _cameraFrame({required double height, required bool large}) {
+  Widget _cameraFrame({
+    required double height,
+    required bool large,
+    double? cornerSize,
+  }) {
     return Container(
       height: height,
       decoration: BoxDecoration(
@@ -374,10 +609,15 @@ class _DefectsScreenState extends State<DefectsScreen> {
         fit: StackFit.expand,
         children: [
           if (supportsCameraScanner)
-            MobileScanner(controller: _scannerController, onDetect: _onDetect)
+            MobileScanner(
+              controller: _scannerController,
+              fit: BoxFit.cover,
+              tapToFocus: true,
+              onDetect: _onDetect,
+            )
           else
             _manualScannerFallback(),
-          Center(child: _scanCorners(size: large ? 256 : 132)),
+          Center(child: _scanCorners(size: cornerSize ?? (large ? 256 : 132))),
           Positioned(
             top: large ? 16 : 12,
             right: large ? 16 : 12,
@@ -528,42 +768,51 @@ class _DefectsScreenState extends State<DefectsScreen> {
   }
 
   Widget _zoomPanel() {
-    return Container(
-      width: 400,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF424756),
-        border: Border.all(color: _line),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              const Text('Zoom', style: TextStyle(fontWeight: FontWeight.w800)),
-              const Spacer(),
-              Text(
-                '${(1 + (_zoom * 2)).toStringAsFixed(1)}x',
-                style: const TextStyle(
-                  color: _line,
-                  fontWeight: FontWeight.w900,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 400),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF424756),
+          border: Border.all(color: _line),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Row(
+              children: [
+                const Text(
+                  'Zoom',
+                  style: TextStyle(fontWeight: FontWeight.w800),
                 ),
-              ),
-            ],
-          ),
-          Row(
-            children: [
-              _zoomButton(
-                Icons.remove,
-                () => _setZoom((_zoom - 0.1).clamp(0, 1)),
-              ),
-              Expanded(
-                child: Slider(value: _zoom, onChanged: _setZoom),
-              ),
-              _zoomButton(Icons.add, () => _setZoom((_zoom + 0.1).clamp(0, 1))),
-            ],
-          ),
-        ],
+                const Spacer(),
+                Text(
+                  '${(1 + (_zoom * 2)).toStringAsFixed(1)}x',
+                  style: const TextStyle(
+                    color: _line,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                _zoomButton(
+                  Icons.remove,
+                  () => _setZoom((_zoom - 0.1).clamp(0, 1)),
+                ),
+                Expanded(
+                  child: Slider(value: _zoom, onChanged: _setZoom),
+                ),
+                _zoomButton(
+                  Icons.add,
+                  () => _setZoom((_zoom + 0.1).clamp(0, 1)),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -847,6 +1096,42 @@ class _DefectsScreenState extends State<DefectsScreen> {
     );
   }
 
+  Widget _desktopLabel(String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
+    );
+  }
+
+  Widget _desktopDropdown({
+    required String? value,
+    required String hint,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+    String? Function(String?)? validator,
+  }) {
+    return DropdownButtonFormField<String>(
+      key: ValueKey('desktop-$hint-$value'),
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        hintText: hint,
+        isDense: true,
+        border: const OutlineInputBorder(),
+      ),
+      items: options
+          .map(
+            (item) => DropdownMenuItem(
+              value: item,
+              child: Text(item, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: onChanged,
+      validator: validator,
+    );
+  }
+
   Widget _subPanel({
     required String title,
     required Widget child,
@@ -1050,38 +1335,43 @@ class _DefectsScreenState extends State<DefectsScreen> {
     String? selected,
     ValueChanged<String> onChanged,
   ) {
-    return GridView.count(
-      shrinkWrap: true,
-      crossAxisCount: 2,
-      childAspectRatio: 5.2,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      physics: const NeverScrollableScrollPhysics(),
-      children: items
-          .map(
-            (item) => OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 46),
-                backgroundColor: item == selected
-                    ? _green
-                    : const Color(0xFF30313E),
-                side: const BorderSide(color: _line),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(7),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final phone = constraints.maxWidth < 360;
+        return GridView.count(
+          shrinkWrap: true,
+          crossAxisCount: 2,
+          childAspectRatio: phone ? 3.1 : 4.6,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          physics: const NeverScrollableScrollPhysics(),
+          children: items
+              .map(
+                (item) => OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    backgroundColor: item == selected
+                        ? _green
+                        : const Color(0xFF30313E),
+                    side: const BorderSide(color: _line),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                  ),
+                  onPressed: () => onChanged(item),
+                  child: Text(
+                    item,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
-              ),
-              onPressed: () => onChanged(item),
-              child: Text(
-                item,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          )
-          .toList(),
+              )
+              .toList(),
+        );
+      },
     );
   }
 

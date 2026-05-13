@@ -16,7 +16,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
   void initState() {
     super.initState();
     _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
+      autoZoom: true,
+      cameraResolution: const Size(1280, 720),
+      detectionSpeed: DetectionSpeed.normal,
+      detectionTimeoutMs: 250,
       formats: const [
         BarcodeFormat.qrCode,
         BarcodeFormat.code128,
@@ -58,6 +61,8 @@ class _ScannerScreenState extends State<ScannerScreen> {
         children: [
           MobileScanner(
             controller: _controller,
+            fit: BoxFit.cover,
+            tapToFocus: true,
             onDetect: (capture) {
               if (_returned) return;
               final value = capture.barcodes
