@@ -123,19 +123,27 @@ class UpdateService {
   static Map<String, dynamic>? _selectAsset(List<Map<String, dynamic>> assets) {
     if (assets.isEmpty) return null;
 
-    bool matches(String name) {
+    bool matchesPreferred(String name) {
       final lower = name.toLowerCase();
       return switch (defaultTargetPlatform) {
         TargetPlatform.android => lower.endsWith('.apk'),
         TargetPlatform.windows =>
-          lower.endsWith('.zip') && lower.contains('windows'),
+          lower.endsWith('.exe') && lower.contains('windows'),
         _ => lower.endsWith('.apk'),
       };
     }
 
     for (final asset in assets) {
-      if (matches('${asset['name'] ?? ''}')) return asset;
+      if (matchesPreferred('${asset['name'] ?? ''}')) return asset;
     }
+
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      for (final asset in assets) {
+        final lower = '${asset['name'] ?? ''}'.toLowerCase();
+        if (lower.endsWith('.zip') && lower.contains('windows')) return asset;
+      }
+    }
+
     return null;
   }
 }
