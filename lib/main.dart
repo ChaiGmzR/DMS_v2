@@ -4,6 +4,7 @@ import 'src/core/api_client.dart';
 import 'src/state/app_state.dart';
 import 'src/ui/login_screen.dart';
 import 'src/ui/shell_screen.dart';
+import 'src/ui/update_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -13,22 +14,29 @@ Future<void> main() async {
 }
 
 class DmsApp extends StatelessWidget {
-  const DmsApp({super.key, required this.appState});
+  const DmsApp({
+    super.key,
+    required this.appState,
+    this.enableUpdateCheck = true,
+  });
 
   final AppState appState;
+  final bool enableUpdateCheck;
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: appState,
       builder: (context, _) {
+        final home = appState.isAuthenticated
+            ? ShellScreen(appState: appState)
+            : LoginScreen(appState: appState);
+
         return MaterialApp(
           title: 'DMS Flutter',
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(),
-          home: appState.isAuthenticated
-              ? ShellScreen(appState: appState)
-              : LoginScreen(appState: appState),
+          home: enableUpdateCheck ? UpdateGate(child: home) : home,
         );
       },
     );

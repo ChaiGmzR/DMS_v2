@@ -12,7 +12,9 @@ void main() {
     final appState = AppState(ApiClient());
     await appState.load();
 
-    await tester.pumpWidget(DmsApp(appState: appState));
+    await tester.pumpWidget(
+      DmsApp(appState: appState, enableUpdateCheck: false),
+    );
 
     expect(find.text('DMS'), findsOneWidget);
     expect(find.text('Iniciar sesion'), findsOneWidget);
