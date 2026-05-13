@@ -26,6 +26,7 @@ class DefectsScreen extends StatefulWidget {
 }
 
 class _DefectsScreenState extends State<DefectsScreen> {
+  static const _scanPrompt = 'Apunta la camara al QR o codigo';
   static const _bg = Color(0xFF30313E);
   static const _panel = Color(0xFF333541);
   static const _header = Color(0xFF122C4B);
@@ -45,7 +46,10 @@ class _DefectsScreenState extends State<DefectsScreen> {
   bool _saving = false;
   bool _listExpanded = false;
   bool _scanLocked = false;
-  String _scanStatus = 'Apunta la camara al QR o codigo';
+  String _scanStatus = _scanPrompt;
+  String? _ignoredScanCode;
+  Timer? _ignoredScanTimer;
+  Timer? _scanUnlockTimer;
 
   DateTime _fecha = DateTime.now();
   String? _linea;
@@ -75,6 +79,8 @@ class _DefectsScreenState extends State<DefectsScreen> {
     _ubicacionController.dispose();
     _modeloController.dispose();
     _codigoFiltroController.dispose();
+    _ignoredScanTimer?.cancel();
+    _scanUnlockTimer?.cancel();
     _scannerController.dispose();
     super.dispose();
   }
@@ -1601,6 +1607,8 @@ class _DefectsScreenState extends State<DefectsScreen> {
         'etapa_deteccion': etapa,
         'registrado_por': user.displayName,
       });
+      final registeredCode = _codigoController.text.trim().toUpperCase();
+      _ignoreScanCodeUntilRemoved(registeredCode);
       _clearForm();
       await _load();
       if (mounted) {
@@ -1631,6 +1639,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
       _area = null;
       _tipoInspeccion = 'Visual';
       _fecha = DateTime.now();
+      _scanStatus = _scanPrompt;
     });
   }
 
@@ -1658,24 +1667,26 @@ class _DefectsScreenState extends State<DefectsScreen> {
         .where((value) => value.trim().isNotEmpty)
         .firstOrNull;
     final code = rawCode == null ? null : extractPartCode(rawCode);
-    _scanLocked = true;
     if (code == null) {
+      _scanLocked = true;
       _setScanStatus('QR detectado sin codigo valido: ${_shortScan(rawCode)}');
-      Future.delayed(const Duration(milliseconds: 900), () {
-        _scanLocked = false;
-      });
+      _unlockScannerAfter(const Duration(milliseconds: 900));
       return;
     }
 
-    _setScanStatus('Codigo detectado: ${code.trim().toUpperCase()}');
-    setState(() => _codigoController.text = code.trim().toUpperCase());
+    final normalizedCode = code.trim().toUpperCase();
+    if (_isIgnoredScanCode(normalizedCode)) return;
+
+    _scanLocked = true;
+    _setScanStatus('Codigo detectado: $normalizedCode');
+    setState(() => _codigoController.text = normalizedCode);
     unawaited(_lookupModel());
     try {
       if (mounted && MediaQuery.sizeOf(context).width < 820) {
         await _showCaptureSheet();
       }
     } finally {
-      Future.delayed(const Duration(seconds: 1), () => _scanLocked = false);
+      _unlockScannerAfter(const Duration(seconds: 1));
     }
   }
 
@@ -1700,6 +1711,32 @@ class _DefectsScreenState extends State<DefectsScreen> {
   void _setScanStatus(String value) {
     if (!mounted) return;
     setState(() => _scanStatus = value);
+  }
+
+  bool _isIgnoredScanCode(String code) {
+    if (_ignoredScanCode != code) return false;
+    _extendIgnoredScanWindow();
+    return true;
+  }
+
+  void _ignoreScanCodeUntilRemoved(String code) {
+    if (code.isEmpty) return;
+    _ignoredScanCode = code;
+    _extendIgnoredScanWindow();
+  }
+
+  void _extendIgnoredScanWindow() {
+    _ignoredScanTimer?.cancel();
+    _ignoredScanTimer = Timer(const Duration(milliseconds: 1500), () {
+      _ignoredScanCode = null;
+    });
+  }
+
+  void _unlockScannerAfter(Duration duration) {
+    _scanUnlockTimer?.cancel();
+    _scanUnlockTimer = Timer(duration, () {
+      _scanLocked = false;
+    });
   }
 
   String _shortScan(String? value) {
