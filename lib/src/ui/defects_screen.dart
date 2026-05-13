@@ -1053,128 +1053,88 @@ class _DefectsScreenState extends State<DefectsScreen> {
   Widget _desktopFilters() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final twoRows = constraints.maxWidth < 1320;
+        const fieldCount = 5;
+        const groupGap = 12.0;
+        const labelGap = 8.0;
+        const actionWidth = 96.0;
+        const labelWidths = [78.0, 58.0, 48.0, 54.0, 54.0];
+        const minFieldWidth = 112.0;
+        final fixedWidth =
+            actionWidth +
+            (groupGap * fieldCount) +
+            (labelGap * fieldCount) +
+            labelWidths.fold<double>(0, (total, width) => total + width);
+        final fieldWidth = math.max(
+          minFieldWidth,
+          (constraints.maxWidth - fixedWidth) / fieldCount,
+        );
+        final rowWidth = fixedWidth + (fieldWidth * fieldCount);
         final actions = _filterActions();
 
-        if (twoRows) {
-          return Column(
-            children: [
-              Row(
-                children: [
-                  SizedBox(
-                    width: 245,
-                    child: _desktopFilterField(
-                      label: 'No. Parte',
-                      child: _codeFilterField(),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: _desktopFilterField(
-                      label: 'Defecto',
-                      child: _defectFilterDropdown(),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  SizedBox(
-                    width: 175,
-                    child: _desktopFilterField(
-                      label: 'Linea',
-                      child: _lineFilterDropdown(),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  SizedBox(
-                    width: 205,
-                    child: _desktopFilterField(
-                      label: 'Desde',
-                      child: _dateFilter(
-                        _fechaInicio,
-                        (value) => _fechaInicio = value,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 14),
-                  SizedBox(
-                    width: 205,
-                    child: _desktopFilterField(
-                      label: 'Hasta',
-                      child: _dateFilter(
-                        _fechaFin,
-                        (value) => _fechaFin = value,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  actions,
-                ],
-              ),
-            ],
-          );
-        }
-
-        return Row(
-          children: [
-            SizedBox(
-              width: 245,
-              child: _desktopFilterField(
-                label: 'No. Parte',
-                child: _codeFilterField(),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              flex: 3,
-              child: _desktopFilterField(
-                label: 'Defecto',
-                child: _defectFilterDropdown(),
-              ),
-            ),
-            const SizedBox(width: 14),
-            SizedBox(
-              width: 175,
-              child: _desktopFilterField(
-                label: 'Linea',
-                child: _lineFilterDropdown(),
-              ),
-            ),
-            const SizedBox(width: 14),
-            SizedBox(
-              width: 205,
-              child: _desktopFilterField(
-                label: 'Desde',
-                child: _dateFilter(
-                  _fechaInicio,
-                  (value) => _fechaInicio = value,
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SizedBox(
+            width: math.max(constraints.maxWidth, rowWidth),
+            child: Row(
+              children: [
+                _desktopFilterField(
+                  label: 'No. Parte',
+                  labelWidth: labelWidths[0],
+                  fieldWidth: fieldWidth,
+                  child: _codeFilterField(),
                 ),
-              ),
+                const SizedBox(width: groupGap),
+                _desktopFilterField(
+                  label: 'Defecto',
+                  labelWidth: labelWidths[1],
+                  fieldWidth: fieldWidth,
+                  child: _defectFilterDropdown(),
+                ),
+                const SizedBox(width: groupGap),
+                _desktopFilterField(
+                  label: 'Linea',
+                  labelWidth: labelWidths[2],
+                  fieldWidth: fieldWidth,
+                  child: _lineFilterDropdown(),
+                ),
+                const SizedBox(width: groupGap),
+                _desktopFilterField(
+                  label: 'Desde',
+                  labelWidth: labelWidths[3],
+                  fieldWidth: fieldWidth,
+                  child: _dateFilter(
+                    _fechaInicio,
+                    (value) => _fechaInicio = value,
+                  ),
+                ),
+                const SizedBox(width: groupGap),
+                _desktopFilterField(
+                  label: 'Hasta',
+                  labelWidth: labelWidths[4],
+                  fieldWidth: fieldWidth,
+                  child: _dateFilter(_fechaFin, (value) => _fechaFin = value),
+                ),
+                const SizedBox(width: groupGap),
+                actions,
+              ],
             ),
-            const SizedBox(width: 14),
-            SizedBox(
-              width: 205,
-              child: _desktopFilterField(
-                label: 'Hasta',
-                child: _dateFilter(_fechaFin, (value) => _fechaFin = value),
-              ),
-            ),
-            const SizedBox(width: 14),
-            actions,
-          ],
+          ),
         );
       },
     );
   }
 
-  Widget _desktopFilterField({required String label, required Widget child}) {
+  Widget _desktopFilterField({
+    required String label,
+    required double labelWidth,
+    required double fieldWidth,
+    required Widget child,
+  }) {
     return Row(
       children: [
-        _filterLabel(label),
+        SizedBox(width: labelWidth, child: _filterLabel(label)),
         const SizedBox(width: 8),
-        Expanded(child: SizedBox(height: 36, child: child)),
+        SizedBox(width: fieldWidth, height: 36, child: child),
       ],
     );
   }
