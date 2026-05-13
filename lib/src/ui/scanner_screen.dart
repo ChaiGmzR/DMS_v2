@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../core/code_parser.dart';
+
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
 
@@ -70,9 +72,10 @@ class _ScannerScreenState extends State<ScannerScreen> {
                   .whereType<String>()
                   .where((text) => text.trim().isNotEmpty)
                   .firstOrNull;
-              if (value == null) return;
+              final code = value == null ? null : extractPartCode(value);
+              if (code == null) return;
               _returned = true;
-              Navigator.of(context).pop(value.trim());
+              Navigator.of(context).pop(code);
             },
           ),
           Center(

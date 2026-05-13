@@ -36,7 +36,7 @@ class UpdateService {
     try {
       final response = await _client
           .get(
-            UpdateConfig.latestReleaseUri,
+            UpdateConfig.releasesUri,
             headers: const {
               'Accept': 'application/vnd.github+json',
               'User-Agent': 'DMS-v2-update-checker',
@@ -47,29 +47,47 @@ class UpdateService {
       if (response.statusCode != 200) return null;
 
       final json = jsonDecode(response.body);
-      if (json is! Map<String, dynamic>) return null;
+      final releases = json is List
+          ? json.whereType<Map<String, dynamic>>()
+          : <Map<String, dynamic>>[];
 
-      final tagName = '${json['tag_name'] ?? ''}'.trim();
-      final latestVersion = normalizeVersion(tagName);
-      if (!isNewerVersion(latestVersion, UpdateConfig.currentVersion)) {
-        return null;
+      UpdateInfo? selected;
+      for (final release in releases) {
+        if (release['draft'] == true || release['prerelease'] == true) {
+          continue;
+        }
+
+        final tagName = '${release['tag_name'] ?? ''}'.trim();
+        final latestVersion = normalizeVersion(tagName);
+        if (!isNewerVersion(latestVersion, UpdateConfig.currentVersion)) {
+          continue;
+        }
+
+        final assets = release['assets'] is List
+            ? (release['assets'] as List)
+                  .whereType<Map<String, dynamic>>()
+                  .toList()
+            : <Map<String, dynamic>>[];
+        final asset = _selectAsset(assets);
+        if (asset == null) continue;
+
+        final candidate = UpdateInfo(
+          version: latestVersion,
+          tagName: tagName,
+          title: '${release['name'] ?? tagName}',
+          notes: '${release['body'] ?? ''}',
+          releaseUrl: '${release['html_url'] ?? ''}',
+          downloadUrl: '${asset['browser_download_url'] ?? ''}',
+          assetName: '${asset['name'] ?? 'Release'}',
+        );
+
+        if (selected == null ||
+            isNewerVersion(candidate.version, selected.version)) {
+          selected = candidate;
+        }
       }
 
-      final assets = json['assets'] is List
-          ? (json['assets'] as List).whereType<Map<String, dynamic>>().toList()
-          : <Map<String, dynamic>>[];
-      final asset = _selectAsset(assets);
-      final releaseUrl = '${json['html_url'] ?? ''}';
-
-      return UpdateInfo(
-        version: latestVersion,
-        tagName: tagName,
-        title: '${json['name'] ?? tagName}',
-        notes: '${json['body'] ?? ''}',
-        releaseUrl: releaseUrl,
-        downloadUrl: '${asset?['browser_download_url'] ?? releaseUrl}',
-        assetName: '${asset?['name'] ?? 'Release'}',
-      );
+      return selected;
     } catch (_) {
       return null;
     }
@@ -118,6 +136,6 @@ class UpdateService {
     for (final asset in assets) {
       if (matches('${asset['name'] ?? ''}')) return asset;
     }
-    return assets.first;
+    return null;
   }
 }

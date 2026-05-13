@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../core/code_parser.dart';
 import '../core/models.dart';
 import '../state/app_state.dart';
 import 'ui_helpers.dart';
@@ -344,7 +347,10 @@ class _DefectsScreenState extends State<DefectsScreen> {
                         border: OutlineInputBorder(),
                       ),
                       validator: _required,
-                      onFieldSubmitted: (_) => _lookupModel(),
+                      onFieldSubmitted: (_) {
+                        _normalizeCurrentCode();
+                        _lookupModel();
+                      },
                     ),
                     const SizedBox(height: 10),
                     _desktopLabel('Defecto:'),
@@ -501,7 +507,10 @@ class _DefectsScreenState extends State<DefectsScreen> {
                 isDense: true,
                 border: OutlineInputBorder(),
               ),
-              onSubmitted: (_) => _lookupModel(),
+              onSubmitted: (_) {
+                _normalizeCurrentCode();
+                _lookupModel();
+              },
             ),
           ),
           const SizedBox(height: 12),
@@ -664,6 +673,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
               border: OutlineInputBorder(),
             ),
             onSubmitted: (_) async {
+              _normalizeCurrentCode();
               await _lookupModel();
               if (!mounted) return;
               if (MediaQuery.sizeOf(context).width < 820) {
@@ -1530,6 +1540,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
   }
 
   Future<bool> _saveDefect({bool closeModal = false}) async {
+    _normalizeCurrentCode();
     final valid = _formKey.currentState?.validate() ?? true;
     if (!valid ||
         _linea == null ||
@@ -1607,6 +1618,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
   }
 
   Future<void> _lookupModel() async {
+    _normalizeCurrentCode();
     final codigo = _codigoController.text.trim().toUpperCase();
     if (codigo.length < 3) return;
     try {
@@ -1623,19 +1635,23 @@ class _DefectsScreenState extends State<DefectsScreen> {
 
   Future<void> _onDetect(BarcodeCapture capture) async {
     if (_scanLocked) return;
-    final code = capture.barcodes
+    final rawCode = capture.barcodes
         .map((barcode) => barcode.rawValue)
         .whereType<String>()
         .where((value) => value.trim().isNotEmpty)
         .firstOrNull;
+    final code = rawCode == null ? null : extractPartCode(rawCode);
     if (code == null) return;
     _scanLocked = true;
     setState(() => _codigoController.text = code.trim().toUpperCase());
-    await _lookupModel();
-    if (mounted && MediaQuery.sizeOf(context).width < 820) {
-      await _showCaptureSheet();
+    unawaited(_lookupModel());
+    try {
+      if (mounted && MediaQuery.sizeOf(context).width < 820) {
+        await _showCaptureSheet();
+      }
+    } finally {
+      Future.delayed(const Duration(seconds: 1), () => _scanLocked = false);
     }
-    Future.delayed(const Duration(seconds: 2), () => _scanLocked = false);
   }
 
   Future<void> _setZoom(double value) async {
@@ -1643,5 +1659,16 @@ class _DefectsScreenState extends State<DefectsScreen> {
     if (supportsCameraScanner) {
       await _scannerController.setZoomScale(value);
     }
+  }
+
+  void _normalizeCurrentCode() {
+    final code = extractPartCode(_codigoController.text);
+    if (code == null) return;
+    final upper = code.toUpperCase();
+    if (_codigoController.text == upper) return;
+    _codigoController.value = TextEditingValue(
+      text: upper,
+      selection: TextSelection.collapsed(offset: upper.length),
+    );
   }
 }
