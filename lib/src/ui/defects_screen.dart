@@ -1,8 +1,13 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:math' as math;
 
+import 'package:excel/excel.dart' as xls;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../core/app_constants.dart';
 import '../core/code_parser.dart';
@@ -40,11 +45,14 @@ class _DefectsScreenState extends State<DefectsScreen> {
   final _ubicacionController = TextEditingController();
   final _modeloController = TextEditingController();
   final _codigoFiltroController = TextEditingController();
+  final _desktopTableHorizontalController = ScrollController();
+  final _desktopTableVerticalController = ScrollController();
   late final MobileScannerController _scannerController;
 
   List<DefectItem> _defects = [];
   bool _loading = false;
   bool _saving = false;
+  bool _exporting = false;
   bool _listExpanded = false;
   bool _scanLocked = false;
   String _scanStatus = _scanPrompt;
@@ -80,6 +88,8 @@ class _DefectsScreenState extends State<DefectsScreen> {
     _ubicacionController.dispose();
     _modeloController.dispose();
     _codigoFiltroController.dispose();
+    _desktopTableHorizontalController.dispose();
+    _desktopTableVerticalController.dispose();
     _ignoredScanTimer?.cancel();
     _scanUnlockTimer?.cancel();
     _scannerController.dispose();
@@ -204,24 +214,94 @@ class _DefectsScreenState extends State<DefectsScreen> {
                 const SizedBox(width: 12),
               ],
               if (widget.navigationMenu != null) widget.navigationMenu!,
-              IconButton.filled(
-                tooltip: desktop ? 'Usuario / cerrar sesion' : 'Cerrar sesion',
-                onPressed: widget.appState.logout,
-                icon: Icon(desktop ? Icons.person : Icons.logout),
-                color: Colors.white,
-                style: IconButton.styleFrom(
-                  backgroundColor: desktop ? _green : null,
-                  side: desktop ? null : const BorderSide(color: _line),
-                  shape: desktop
-                      ? const CircleBorder()
-                      : RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                ),
-              ),
+              _userActionButton(desktop: desktop),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _userActionButton({required bool desktop}) {
+    if (!desktop) {
+      return IconButton.filled(
+        tooltip: 'Cerrar sesion',
+        onPressed: widget.appState.logout,
+        icon: const Icon(Icons.logout),
+        color: Colors.white,
+        style: IconButton.styleFrom(
+          side: const BorderSide(color: _line),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
+
+    final user = widget.appState.user;
+    return PopupMenuButton<_UserMenuAction>(
+      tooltip: 'Usuario',
+      offset: const Offset(0, 54),
+      onSelected: (action) {
+        if (action == _UserMenuAction.logout) widget.appState.logout();
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem<_UserMenuAction>(
+          enabled: false,
+          child: SizedBox(
+            width: 280,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  user?.displayName ?? 'Usuario',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 6),
+                _userInfoLine('Usuario', user?.username ?? '-'),
+                _userInfoLine('Rol', _roleLabel(user?.rol ?? '-')),
+                _userInfoLine('Area', user?.area ?? '-'),
+              ],
+            ),
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem<_UserMenuAction>(
+          value: _UserMenuAction.logout,
+          child: Row(
+            children: [
+              Icon(Icons.logout),
+              SizedBox(width: 10),
+              Text('Cerrar sesion'),
+            ],
+          ),
+        ),
+      ],
+      child: Container(
+        width: 46,
+        height: 46,
+        decoration: const BoxDecoration(color: _green, shape: BoxShape.circle),
+        child: const Icon(Icons.person, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _userInfoLine(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 58,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFFB8C4CB),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          Expanded(child: Text(value)),
+        ],
       ),
     );
   }
@@ -412,7 +492,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
             width: double.infinity,
             color: const Color(0xFF424452),
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            child: _filters(),
+            child: _filters(desktop: true),
           ),
           Expanded(
             child: _loading
@@ -438,7 +518,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
                       ],
                     ),
                   )
-                : _desktopTable(),
+                : _desktopTable(fillWidth: true),
           ),
         ],
       ),
@@ -890,7 +970,9 @@ class _DefectsScreenState extends State<DefectsScreen> {
     );
   }
 
-  Widget _filters() {
+  Widget _filters({bool desktop = false}) {
+    if (desktop) return _desktopFilters();
+
     return Wrap(
       spacing: 12,
       runSpacing: 10,
@@ -968,6 +1050,204 @@ class _DefectsScreenState extends State<DefectsScreen> {
     );
   }
 
+  Widget _desktopFilters() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final twoRows = constraints.maxWidth < 1320;
+        final actions = _filterActions();
+
+        if (twoRows) {
+          return Column(
+            children: [
+              Row(
+                children: [
+                  SizedBox(
+                    width: 245,
+                    child: _desktopFilterField(
+                      label: 'No. Parte',
+                      child: _codeFilterField(),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: _desktopFilterField(
+                      label: 'Defecto',
+                      child: _defectFilterDropdown(),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  SizedBox(
+                    width: 175,
+                    child: _desktopFilterField(
+                      label: 'Linea',
+                      child: _lineFilterDropdown(),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 205,
+                    child: _desktopFilterField(
+                      label: 'Desde',
+                      child: _dateFilter(
+                        _fechaInicio,
+                        (value) => _fechaInicio = value,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  SizedBox(
+                    width: 205,
+                    child: _desktopFilterField(
+                      label: 'Hasta',
+                      child: _dateFilter(
+                        _fechaFin,
+                        (value) => _fechaFin = value,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  actions,
+                ],
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            SizedBox(
+              width: 245,
+              child: _desktopFilterField(
+                label: 'No. Parte',
+                child: _codeFilterField(),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              flex: 3,
+              child: _desktopFilterField(
+                label: 'Defecto',
+                child: _defectFilterDropdown(),
+              ),
+            ),
+            const SizedBox(width: 14),
+            SizedBox(
+              width: 175,
+              child: _desktopFilterField(
+                label: 'Linea',
+                child: _lineFilterDropdown(),
+              ),
+            ),
+            const SizedBox(width: 14),
+            SizedBox(
+              width: 205,
+              child: _desktopFilterField(
+                label: 'Desde',
+                child: _dateFilter(
+                  _fechaInicio,
+                  (value) => _fechaInicio = value,
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            SizedBox(
+              width: 205,
+              child: _desktopFilterField(
+                label: 'Hasta',
+                child: _dateFilter(_fechaFin, (value) => _fechaFin = value),
+              ),
+            ),
+            const SizedBox(width: 14),
+            actions,
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _desktopFilterField({required String label, required Widget child}) {
+    return Row(
+      children: [
+        _filterLabel(label),
+        const SizedBox(width: 8),
+        Expanded(child: SizedBox(height: 36, child: child)),
+      ],
+    );
+  }
+
+  Widget _filterActions() {
+    return SizedBox(
+      width: 96,
+      child: Row(
+        children: [
+          SizedBox(
+            width: 42,
+            height: 42,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                padding: EdgeInsets.zero,
+                backgroundColor: _line,
+              ),
+              onPressed: _load,
+              child: const Icon(Icons.search),
+            ),
+          ),
+          const SizedBox(width: 12),
+          SizedBox(
+            width: 42,
+            height: 42,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                padding: EdgeInsets.zero,
+                backgroundColor: _green,
+              ),
+              onPressed: _defects.isEmpty || _exporting
+                  ? null
+                  : _exportDefectsToExcel,
+              child: _exporting
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.download),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _codeFilterField() {
+    return TextField(
+      controller: _codigoFiltroController,
+      decoration: const InputDecoration(
+        hintText: 'Buscar codigo...',
+        isDense: true,
+        border: OutlineInputBorder(),
+      ),
+      onSubmitted: (_) => _load(),
+    );
+  }
+
+  Widget _defectFilterDropdown() {
+    return _filterDropdown(_defectoFiltro, [
+      null,
+      ...defectosCatalogo,
+    ], (v) => setState(() => _defectoFiltro = v));
+  }
+
+  Widget _lineFilterDropdown() {
+    return _filterDropdown(_lineaFiltro, [
+      null,
+      ...lineasDms,
+    ], (v) => setState(() => _lineaFiltro = v));
+  }
+
   Widget _filterLabel(String value) {
     return Text(
       value,
@@ -1024,7 +1304,9 @@ class _DefectsScreenState extends State<DefectsScreen> {
     );
   }
 
-  Widget _desktopTable() {
+  Widget _desktopTable({bool fillWidth = false}) {
+    if (fillWidth) return _responsiveDesktopTable();
+
     return Scrollbar(
       thumbVisibility: true,
       child: SingleChildScrollView(
@@ -1090,6 +1372,155 @@ class _DefectsScreenState extends State<DefectsScreen> {
         ),
       ),
     );
+  }
+
+  Widget _responsiveDesktopTable() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = _defectTableColumns();
+        final minWidth = columns.fold<double>(
+          0,
+          (total, column) => total + column.minWidth,
+        );
+        final tableWidth = math.max(constraints.maxWidth, minWidth);
+        final widths = _tableColumnWidths(columns, tableWidth);
+
+        return Scrollbar(
+          controller: _desktopTableVerticalController,
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            controller: _desktopTableVerticalController,
+            child: Scrollbar(
+              controller: _desktopTableHorizontalController,
+              thumbVisibility: tableWidth > constraints.maxWidth,
+              notificationPredicate: (notification) =>
+                  notification.metrics.axis == Axis.horizontal,
+              child: SingleChildScrollView(
+                controller: _desktopTableHorizontalController,
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: tableWidth,
+                  child: Column(
+                    children: [
+                      _desktopTableHeader(columns, widths),
+                      for (final defect in _defects)
+                        _desktopTableRow(defect, columns, widths),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _desktopTableHeader(
+    List<_DefectTableColumn> columns,
+    List<double> widths,
+  ) {
+    return Container(
+      height: 44,
+      color: _green,
+      child: Row(
+        children: [
+          for (var i = 0; i < columns.length; i++)
+            SizedBox(
+              width: widths[i],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Align(
+                  alignment: columns[i].alignment,
+                  child: Text(
+                    columns[i].label,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _desktopTableRow(
+    DefectItem defect,
+    List<_DefectTableColumn> columns,
+    List<double> widths,
+  ) {
+    final values = [
+      formatDateOnly(defect.fecha),
+      defect.linea,
+      defect.codigo,
+      defect.modelo,
+      defect.defecto,
+      defect.ubicacion,
+      defect.area,
+      defect.registradoPor,
+      formatTimeOnly(defect.fecha),
+    ];
+
+    return Container(
+      height: 42,
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: Color(0xFF414735))),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < columns.length; i++)
+            SizedBox(
+              width: widths[i],
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Align(
+                  alignment: columns[i].alignment,
+                  child: Text(
+                    values[i],
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  List<double> _tableColumnWidths(
+    List<_DefectTableColumn> columns,
+    double tableWidth,
+  ) {
+    final minWidth = columns.fold<double>(
+      0,
+      (total, column) => total + column.minWidth,
+    );
+    final extraWidth = math.max(0, tableWidth - minWidth);
+    final totalFlex = columns.fold<double>(
+      0,
+      (total, column) => total + column.flex,
+    );
+
+    return [
+      for (final column in columns)
+        column.minWidth + (extraWidth * (column.flex / totalFlex)),
+    ];
+  }
+
+  List<_DefectTableColumn> _defectTableColumns() {
+    return const [
+      _DefectTableColumn('Fecha', 106, 0.8),
+      _DefectTableColumn('Linea', 72, 0.4, alignment: Alignment.center),
+      _DefectTableColumn('Codigo', 170, 1.4),
+      _DefectTableColumn('Modelo', 126, 1.0),
+      _DefectTableColumn('Defecto', 152, 1.2),
+      _DefectTableColumn('Ubicacion', 126, 1.0),
+      _DefectTableColumn('Area', 142, 1.1),
+      _DefectTableColumn('Capturista', 172, 1.4),
+      _DefectTableColumn('Hora', 76, 0.4, alignment: Alignment.center),
+    ];
   }
 
   Widget _outlinedPanel({required Widget child}) {
@@ -1519,6 +1950,18 @@ class _DefectsScreenState extends State<DefectsScreen> {
     return value == null || value.trim().isEmpty ? 'Requerido' : null;
   }
 
+  String _roleLabel(String role) {
+    return switch (role) {
+      'Inspector_LQC' => 'Inspector LQC',
+      'Inspector_OQC' => 'Inspector OQC',
+      'Supervisor_Calidad' => 'Supervisor Calidad',
+      'Supervisor_Produccion' => 'Supervisor Produccion',
+      'Reparador' => 'Reparador',
+      'Admin' => 'Admin',
+      _ => role,
+    };
+  }
+
   Future<void> _pickCaptureDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -1527,6 +1970,108 @@ class _DefectsScreenState extends State<DefectsScreen> {
       lastDate: DateTime.now().add(const Duration(days: 30)),
     );
     if (picked != null) setState(() => _fecha = picked);
+  }
+
+  Future<void> _exportDefectsToExcel() async {
+    if (_defects.isEmpty || _exporting) return;
+
+    setState(() => _exporting = true);
+    try {
+      final workbook = xls.Excel.createExcel();
+      const sheetName = 'Defectos';
+      final sheet = workbook[sheetName];
+      final defaultSheet = workbook.getDefaultSheet();
+      if (defaultSheet != null && defaultSheet != sheetName) {
+        workbook.delete(defaultSheet);
+      }
+
+      sheet.appendRow([
+        _excelText('Fecha'),
+        _excelText('Linea'),
+        _excelText('Codigo'),
+        _excelText('Modelo'),
+        _excelText('Defecto'),
+        _excelText('Ubicacion'),
+        _excelText('Area'),
+        _excelText('Capturista'),
+        _excelText('Hora'),
+        _excelText('Status'),
+      ]);
+
+      for (final defect in _defects) {
+        sheet.appendRow([
+          _excelText(formatDateOnly(defect.fecha)),
+          _excelText(defect.linea),
+          _excelText(defect.codigo),
+          _excelText(defect.modelo),
+          _excelText(defect.defecto),
+          _excelText(defect.ubicacion),
+          _excelText(defect.area),
+          _excelText(defect.registradoPor),
+          _excelText(formatTimeOnly(defect.fecha)),
+          _excelText(statusLabel(defect.status)),
+        ]);
+      }
+
+      const widths = [
+        14.0,
+        10.0,
+        24.0,
+        18.0,
+        20.0,
+        18.0,
+        18.0,
+        28.0,
+        10.0,
+        18.0,
+      ];
+      for (var index = 0; index < widths.length; index++) {
+        sheet.setColumnWidth(index, widths[index]);
+      }
+
+      final fileName = _excelFileName();
+      final bytes = workbook.save(fileName: fileName);
+      if (bytes == null || bytes.isEmpty) {
+        throw const FileSystemException('No se generaron datos de Excel');
+      }
+
+      final directory =
+          await getDownloadsDirectory() ??
+          await getApplicationDocumentsDirectory();
+      final file = File('${directory.path}${Platform.pathSeparator}$fileName');
+      await file.writeAsBytes(bytes, flush: true);
+
+      final result = await OpenFilex.open(
+        file.path,
+        type:
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+
+      if (!mounted) return;
+      final opened = result.type == ResultType.done;
+      ScaffoldMessenger.of(context).showSnackBar(
+        snack(
+          opened
+              ? 'Excel descargado en ${file.path}'
+              : 'Excel guardado en ${file.path}',
+          error: false,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        snack('No se pudo generar el archivo de Excel', error: true),
+      );
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  xls.TextCellValue _excelText(String value) => xls.TextCellValue(value);
+
+  String _excelFileName() {
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    return 'DMS_defectos_$timestamp.xlsx';
   }
 
   Future<void> _load() async {
@@ -1766,4 +2311,20 @@ class _DefectsScreenState extends State<DefectsScreen> {
       ),
     );
   }
+}
+
+enum _UserMenuAction { logout }
+
+class _DefectTableColumn {
+  const _DefectTableColumn(
+    this.label,
+    this.minWidth,
+    this.flex, {
+    this.alignment = Alignment.centerLeft,
+  });
+
+  final String label;
+  final double minWidth;
+  final double flex;
+  final Alignment alignment;
 }
