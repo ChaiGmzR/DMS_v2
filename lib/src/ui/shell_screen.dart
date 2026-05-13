@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_constants.dart';
 import '../state/app_state.dart';
 import 'defects_screen.dart';
 import 'qa_screen.dart';
@@ -79,9 +80,16 @@ class _ShellScreenState extends State<ShellScreen> {
                   onDestinationSelected: (value) =>
                       setState(() => _selectedIndex = value),
                   labelType: NavigationRailLabelType.all,
-                  leading: const Padding(
-                    padding: EdgeInsets.only(top: 16, bottom: 12),
-                    child: Icon(Icons.fact_check_outlined, size: 32),
+                  leading: Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 12),
+                    child: SizedBox(
+                      width: 38,
+                      height: 32,
+                      child: Image.asset(
+                        AppConstants.logoAsset,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
                   ),
                   destinations: modules
                       .map(

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../core/app_constants.dart';
 import '../core/code_parser.dart';
 import '../core/models.dart';
 import '../state/app_state.dart';
@@ -138,7 +139,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
           ),
           child: Row(
             children: [
-              Container(
+              SizedBox(
                 width: desktop
                     ? 62
                     : portrait
@@ -149,19 +150,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
                     : portrait
                     ? 44
                     : 42,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF0A8043),
-                  borderRadius: BorderRadius.circular(desktop ? 34 : 24),
-                  border: Border.all(
-                    color: const Color(0xFF1CC96F),
-                    width: desktop ? 3 : 2,
-                  ),
-                ),
-                child: Icon(
-                  Icons.factory_outlined,
-                  color: Colors.white,
-                  size: desktop ? 34 : 24,
-                ),
+                child: Image.asset(AppConstants.logoAsset, fit: BoxFit.contain),
               ),
               SizedBox(width: desktop ? 10 : 8),
               Column(

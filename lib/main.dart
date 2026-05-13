@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'src/core/api_client.dart';
+import 'src/core/app_constants.dart';
 import 'src/state/app_state.dart';
 import 'src/ui/login_screen.dart';
 import 'src/ui/shell_screen.dart';
@@ -33,7 +34,7 @@ class DmsApp extends StatelessWidget {
             : LoginScreen(appState: appState);
 
         return MaterialApp(
-          title: 'DMS Flutter',
+          title: AppConstants.appName,
           debugShowCheckedModeBanner: false,
           theme: _buildTheme(),
           home: enableUpdateCheck ? UpdateGate(child: home) : home,

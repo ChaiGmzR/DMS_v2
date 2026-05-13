@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.ilsan.defectms" "\0"
-            VALUE "FileDescription", "defect_ms_v2" "\0"
+            VALUE "FileDescription", "DMS" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "defect_ms_v2" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.ilsan.defectms. All rights reserved." "\0"
             VALUE "OriginalFilename", "defect_ms_v2.exe" "\0"
-            VALUE "ProductName", "defect_ms_v2" "\0"
+            VALUE "ProductName", "DMS" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

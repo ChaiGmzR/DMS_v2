@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/app_constants.dart';
 import '../core/models.dart';
 import '../state/app_state.dart';
 import 'ui_helpers.dart';
@@ -199,10 +200,10 @@ class _BrandPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.fact_check_outlined,
-            size: 72,
-            color: Theme.of(context).colorScheme.primary,
+          SizedBox(
+            width: 88,
+            height: 72,
+            child: Image.asset(AppConstants.logoAsset, fit: BoxFit.contain),
           ),
           const SizedBox(height: 28),
           Text(
