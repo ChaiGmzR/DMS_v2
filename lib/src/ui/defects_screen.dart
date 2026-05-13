@@ -1249,22 +1249,28 @@ class _DefectsScreenState extends State<DefectsScreen> {
     );
   }
 
-  Widget _captureForm({required bool modal}) {
+  Widget _captureFormForModal(StateSetter setModalState) {
+    void selectLine(String value) {
+      setState(() => _linea = value);
+      setModalState(() {});
+    }
+
+    void selectArea(String value) {
+      setState(() => _area = value);
+      setModalState(() {});
+    }
+
     return Form(
-      key: modal ? _formKey : null,
+      key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (modal) _modalInfoBox(),
+          _modalInfoBox(),
           const SizedBox(height: 16),
           const Text('Linea:', style: TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
-          _largeButtonGrid(
-            lineasDms,
-            _linea,
-            (value) => setState(() => _linea = value),
-          ),
+          _largeButtonGrid(lineasDms, _linea, selectLine),
           const SizedBox(height: 18),
           const Text('Defecto:', style: TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
@@ -1282,11 +1288,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
           const SizedBox(height: 18),
           const Text('Area:', style: TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
-          _largeButtonGrid(
-            areasDms,
-            _area,
-            (value) => setState(() => _area = value),
-          ),
+          _largeButtonGrid(areasDms, _area, selectArea),
         ],
       ),
     );
@@ -1393,10 +1395,12 @@ class _DefectsScreenState extends State<DefectsScreen> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setModalState) {
+            final bottomSafeArea = MediaQuery.viewPaddingOf(context).bottom;
             return DraggableScrollableSheet(
               initialChildSize: 0.9,
               minChildSize: 0.65,
@@ -1444,13 +1448,23 @@ class _DefectsScreenState extends State<DefectsScreen> {
                       Expanded(
                         child: SingleChildScrollView(
                           controller: scrollController,
-                          padding: const EdgeInsets.fromLTRB(20, 18, 20, 100),
-                          child: _captureForm(modal: true),
+                          padding: EdgeInsets.fromLTRB(
+                            20,
+                            18,
+                            20,
+                            112 + bottomSafeArea,
+                          ),
+                          child: _captureFormForModal(setModalState),
                         ),
                       ),
                       Container(
-                        height: 90,
-                        padding: const EdgeInsets.all(16),
+                        height: 90 + bottomSafeArea,
+                        padding: EdgeInsets.fromLTRB(
+                          16,
+                          16,
+                          16,
+                          16 + bottomSafeArea,
+                        ),
                         decoration: const BoxDecoration(
                           color: Color(0xFF414450),
                           border: Border(top: BorderSide(color: _line)),

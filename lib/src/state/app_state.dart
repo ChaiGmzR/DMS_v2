@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -25,12 +23,13 @@ class AppState extends ChangeNotifier {
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     apiBaseUrl = prefs.getString(_apiKey) ?? defaultApiBaseUrl();
-    token = prefs.getString(_tokenKey);
-    final storedUser = prefs.getString(_userKey);
-    user = storedUser == null ? null : AppUser.fromStoredString(storedUser);
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
+    token = null;
+    user = null;
     api
       ..baseUrl = apiBaseUrl
-      ..token = token;
+      ..token = null;
     isLoading = false;
     notifyListeners();
   }
@@ -50,8 +49,8 @@ class AppState extends ChangeNotifier {
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_apiKey, apiBaseUrl);
-    await prefs.setString(_tokenKey, token!);
-    await prefs.setString(_userKey, jsonEncode(user!.toJson()));
+    await prefs.remove(_tokenKey);
+    await prefs.remove(_userKey);
     notifyListeners();
   }
 
