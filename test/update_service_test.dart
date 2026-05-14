@@ -28,26 +28,26 @@ void main() {
     test('en Windows prefiere EXE sobre ZIP y APK', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.windows;
       final service = _serviceWithReleaseAssets([
-        _asset('DMS_v2_windows_1.0.4_x64.zip'),
-        _asset('DMS_v2_mobile_1.0.4.apk'),
-        _asset('DMS_v2_windows_1.0.4_x64.exe'),
+        _asset('DMS_v2_windows_1.0.6_x64.zip'),
+        _asset('DMS_v2_mobile_1.0.6.apk'),
+        _asset('DMS_v2_windows_1.0.6_x64.exe'),
       ]);
 
       final update = await service.checkForUpdate();
 
-      expect(update?.assetName, 'DMS_v2_windows_1.0.4_x64.exe');
+      expect(update?.assetName, 'DMS_v2_windows_1.0.6_x64.exe');
     });
 
     test('en Android selecciona APK', () async {
       debugDefaultTargetPlatformOverride = TargetPlatform.android;
       final service = _serviceWithReleaseAssets([
-        _asset('DMS_v2_windows_1.0.4_x64.exe'),
-        _asset('DMS_v2_mobile_1.0.4.apk'),
+        _asset('DMS_v2_windows_1.0.6_x64.exe'),
+        _asset('DMS_v2_mobile_1.0.6.apk'),
       ]);
 
       final update = await service.checkForUpdate();
 
-      expect(update?.assetName, 'DMS_v2_mobile_1.0.4.apk');
+      expect(update?.assetName, 'DMS_v2_mobile_1.0.6.apk');
     });
   });
 }
@@ -60,11 +60,11 @@ UpdateService _serviceWithReleaseAssets(List<Map<String, dynamic>> assets) {
           {
             'draft': false,
             'prerelease': false,
-            'tag_name': 'v1.0.4',
-            'name': 'Version 1.0.4',
+            'tag_name': 'v1.0.6',
+            'name': 'Version 1.0.6',
             'body': 'Notas',
             'html_url':
-                'https://github.com/ChaiGmzR/DMS_v2/releases/tag/v1.0.3',
+                'https://github.com/ChaiGmzR/DMS_v2/releases/tag/v1.0.6',
             'assets': assets,
           },
         ]),

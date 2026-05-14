@@ -1284,6 +1284,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
               DataColumn(label: Text('Defecto')),
               DataColumn(label: Text('Ubicacion')),
               DataColumn(label: Text('Area')),
+              DataColumn(label: Text('Departamento')),
               DataColumn(label: Text('Capturista')),
               DataColumn(label: Text('Hora')),
             ],
@@ -1314,6 +1315,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
                       ),
                       DataCell(Text(defect.ubicacion)),
                       DataCell(Text(defect.area)),
+                      DataCell(Text(_departmentLabel(defect.etapaDeteccion))),
                       DataCell(
                         SizedBox(
                           width: 130,
@@ -1418,6 +1420,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
       defect.defecto,
       defect.ubicacion,
       defect.area,
+      _departmentLabel(defect.etapaDeteccion),
       defect.registradoPor,
       formatTimeOnly(defect.fecha),
     ];
@@ -1478,6 +1481,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
       _DefectTableColumn('Defecto', 152, 1.2),
       _DefectTableColumn('Ubicacion', 126, 1.0),
       _DefectTableColumn('Area', 142, 1.1),
+      _DefectTableColumn('Departamento', 136, 0.9),
       _DefectTableColumn('Capturista', 172, 1.4),
       _DefectTableColumn('Hora', 76, 0.4, alignment: Alignment.center),
     ];
@@ -1922,6 +1926,11 @@ class _DefectsScreenState extends State<DefectsScreen> {
     };
   }
 
+  String _departmentLabel(String value) {
+    final department = value.trim();
+    return department.isEmpty ? '-' : department;
+  }
+
   Future<void> _pickCaptureDate() async {
     final picked = await showDatePicker(
       context: context,
@@ -1953,6 +1962,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
         _excelText('Defecto'),
         _excelText('Ubicacion'),
         _excelText('Area'),
+        _excelText('Departamento'),
         _excelText('Capturista'),
         _excelText('Hora'),
         _excelText('Status'),
@@ -1967,6 +1977,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
           _excelText(defect.defecto),
           _excelText(defect.ubicacion),
           _excelText(defect.area),
+          _excelText(_departmentLabel(defect.etapaDeteccion)),
           _excelText(defect.registradoPor),
           _excelText(formatTimeOnly(defect.fecha)),
           _excelText(statusLabel(defect.status)),
@@ -1979,6 +1990,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
         24.0,
         18.0,
         20.0,
+        18.0,
         18.0,
         18.0,
         28.0,
