@@ -69,6 +69,9 @@ class _DefectsScreenState extends State<DefectsScreen> {
   String _fechaFin = todayIso();
   String? _lineaFiltro;
   String? _defectoFiltro;
+  int _defectsPage = 1;
+  int _defectsPageSize = 100;
+  int _defectsTotal = 0;
   double _zoom = 0;
 
   @override
@@ -463,6 +466,25 @@ class _DefectsScreenState extends State<DefectsScreen> {
                         style: TextStyle(fontWeight: FontWeight.w900),
                       ),
                     ),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 52),
+                        side: const BorderSide(color: _line),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed:
+                          widget.appState.user?.canCapture == true && !_saving
+                          ? _showBatchCaptureDialog
+                          : null,
+                      icon: const Icon(Icons.playlist_add_check),
+                      label: const Text(
+                        'Captura multiple',
+                        style: TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -520,6 +542,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
                   )
                 : _desktopTable(fillWidth: true),
           ),
+          if (_defectsTotal > 0) _paginationBar(),
         ],
       ),
     );
@@ -989,7 +1012,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
               isDense: true,
               border: OutlineInputBorder(),
             ),
-            onSubmitted: (_) => _load(),
+            onSubmitted: (_) => _applyFilters(),
           ),
         ),
         _filterLabel('Defecto'),
@@ -1030,7 +1053,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
               padding: EdgeInsets.zero,
               backgroundColor: _line,
             ),
-            onPressed: _load,
+            onPressed: _applyFilters,
             child: const Icon(Icons.search),
           ),
         ),
@@ -1152,7 +1175,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
                 padding: EdgeInsets.zero,
                 backgroundColor: _line,
               ),
-              onPressed: _load,
+              onPressed: _applyFilters,
               child: const Icon(Icons.search),
             ),
           ),
@@ -1182,6 +1205,109 @@ class _DefectsScreenState extends State<DefectsScreen> {
     );
   }
 
+  Widget _paginationBar() {
+    final pageCount = math.max(1, (_defectsTotal / _defectsPageSize).ceil());
+    final currentPage = _defectsPage.clamp(1, pageCount);
+    final start = _defectsTotal == 0
+        ? 0
+        : ((currentPage - 1) * _defectsPageSize) + 1;
+    final end = math.min(currentPage * _defectsPageSize, _defectsTotal);
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 52),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFF424452),
+        border: Border(top: BorderSide(color: _line)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            '$start-$end de $_defectsTotal',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(width: 18),
+          const Text(
+            'Filas',
+            style: TextStyle(
+              color: Color(0xFFB8C4CB),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 92,
+            height: 36,
+            child: DropdownButtonFormField<int>(
+              initialValue: _defectsPageSize,
+              decoration: const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.symmetric(horizontal: 10),
+              ),
+              items: const [50, 100, 200, 500]
+                  .map(
+                    (value) =>
+                        DropdownMenuItem(value: value, child: Text('$value')),
+                  )
+                  .toList(),
+              onChanged: _loading
+                  ? null
+                  : (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _defectsPageSize = value;
+                        _defectsPage = 1;
+                      });
+                      _load();
+                    },
+            ),
+          ),
+          const Spacer(),
+          Text(
+            'Pagina $currentPage de $pageCount',
+            style: const TextStyle(
+              color: Color(0xFFB8C4CB),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 10),
+          IconButton.outlined(
+            tooltip: 'Primera pagina',
+            onPressed: _loading || currentPage <= 1
+                ? null
+                : () => _goToDefectsPage(1),
+            icon: const Icon(Icons.first_page),
+          ),
+          const SizedBox(width: 6),
+          IconButton.outlined(
+            tooltip: 'Pagina anterior',
+            onPressed: _loading || currentPage <= 1
+                ? null
+                : () => _goToDefectsPage(currentPage - 1),
+            icon: const Icon(Icons.chevron_left),
+          ),
+          const SizedBox(width: 6),
+          IconButton.outlined(
+            tooltip: 'Pagina siguiente',
+            onPressed: _loading || currentPage >= pageCount
+                ? null
+                : () => _goToDefectsPage(currentPage + 1),
+            icon: const Icon(Icons.chevron_right),
+          ),
+          const SizedBox(width: 6),
+          IconButton.outlined(
+            tooltip: 'Ultima pagina',
+            onPressed: _loading || currentPage >= pageCount
+                ? null
+                : () => _goToDefectsPage(pageCount),
+            icon: const Icon(Icons.last_page),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _codeFilterField() {
     return TextField(
       controller: _codigoFiltroController,
@@ -1190,7 +1316,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
         isDense: true,
         border: OutlineInputBorder(),
       ),
-      onSubmitted: (_) => _load(),
+      onSubmitted: (_) => _applyFilters(),
     );
   }
 
@@ -1946,6 +2072,15 @@ class _DefectsScreenState extends State<DefectsScreen> {
 
     setState(() => _exporting = true);
     try {
+      final exportDefects = await widget.appState.api.getDefects(
+        fechaInicio: _fechaInicio,
+        fechaFin: _fechaFin,
+        linea: _lineaFiltro,
+        codigo: _codigoFiltroController.text.trim(),
+        defecto: _defectoFiltro,
+        limit: 0,
+      );
+
       final workbook = xls.Excel.createExcel();
       const sheetName = 'Defectos';
       final sheet = workbook[sheetName];
@@ -1968,7 +2103,7 @@ class _DefectsScreenState extends State<DefectsScreen> {
         _excelText('Status'),
       ]);
 
-      for (final defect in _defects) {
+      for (final defect in exportDefects) {
         sheet.appendRow([
           _excelText(formatDateOnly(defect.fecha)),
           _excelText(defect.linea),
@@ -2046,17 +2181,36 @@ class _DefectsScreenState extends State<DefectsScreen> {
     return 'DMS_defectos_$timestamp.xlsx';
   }
 
+  void _applyFilters() {
+    setState(() => _defectsPage = 1);
+    _load();
+  }
+
+  void _goToDefectsPage(int page) {
+    setState(() => _defectsPage = page);
+    _load();
+  }
+
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final defects = await widget.appState.api.getDefects(
+      final page = await widget.appState.api.getDefectsPage(
         fechaInicio: _fechaInicio,
         fechaFin: _fechaFin,
         linea: _lineaFiltro,
         codigo: _codigoFiltroController.text.trim(),
         defecto: _defectoFiltro,
+        page: _defectsPage,
+        pageSize: _defectsPageSize,
       );
-      if (mounted) setState(() => _defects = defects);
+      if (mounted) {
+        setState(() {
+          _defects = page.items;
+          _defectsTotal = page.total;
+          _defectsPage = page.page;
+          _defectsPageSize = page.pageSize;
+        });
+      }
     } on DmsException catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -2066,6 +2220,33 @@ class _DefectsScreenState extends State<DefectsScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _showBatchCaptureDialog() async {
+    final registeredCount = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _BatchDefectDialog(
+        appState: widget.appState,
+        initialDate: _fecha,
+        initialLine: _linea,
+        initialDefect: _defecto,
+        initialLocation: _ubicacionController.text,
+        initialArea: _area,
+        initialInspectionType: _tipoInspeccion,
+      ),
+    );
+
+    if (registeredCount == null || registeredCount == 0) return;
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      snack(
+        registeredCount == 1
+            ? '1 pieza registrada correctamente'
+            : '$registeredCount piezas registradas correctamente',
+      ),
+    );
   }
 
   Future<bool> _saveDefect({bool closeModal = false}) async {
@@ -2283,6 +2464,528 @@ class _DefectsScreenState extends State<DefectsScreen> {
       ),
     );
   }
+}
+
+class _BatchDefectDialog extends StatefulWidget {
+  const _BatchDefectDialog({
+    required this.appState,
+    required this.initialDate,
+    required this.initialLine,
+    required this.initialDefect,
+    required this.initialLocation,
+    required this.initialArea,
+    required this.initialInspectionType,
+  });
+
+  final AppState appState;
+  final DateTime initialDate;
+  final String? initialLine;
+  final String? initialDefect;
+  final String initialLocation;
+  final String? initialArea;
+  final String initialInspectionType;
+
+  @override
+  State<_BatchDefectDialog> createState() => _BatchDefectDialogState();
+}
+
+class _BatchDefectDialogState extends State<_BatchDefectDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _codigoController = TextEditingController();
+  final _ubicacionController = TextEditingController();
+  final _codigoFocusNode = FocusNode();
+  final List<_BatchCartItem> _cart = [];
+
+  late DateTime _fecha;
+  late String _tipoInspeccion;
+  String? _linea;
+  String? _defecto;
+  String? _area;
+  bool _adding = false;
+  bool _saving = false;
+  int _registeredCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _fecha = widget.initialDate;
+    _linea = widget.initialLine;
+    _defecto = widget.initialDefect;
+    _area = widget.initialArea;
+    _tipoInspeccion = widget.initialInspectionType;
+    _ubicacionController.text = widget.initialLocation.trim().toUpperCase();
+  }
+
+  @override
+  void dispose() {
+    _codigoController.dispose();
+    _ubicacionController.dispose();
+    _codigoFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 980, maxHeight: 720),
+        child: Column(
+          children: [
+            _header(),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(width: 360, child: _sharedForm()),
+                    const SizedBox(width: 16),
+                    Expanded(child: _cartPanel()),
+                  ],
+                ),
+              ),
+            ),
+            _actions(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header() {
+    return Container(
+      height: 58,
+      color: _DefectsScreenState._header,
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      child: Row(
+        children: [
+          const Icon(Icons.playlist_add_check),
+          const SizedBox(width: 10),
+          const Text(
+            'Captura multiple',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900),
+          ),
+          const Spacer(),
+          Text(
+            'Total: ${_cart.length}',
+            style: const TextStyle(
+              color: Color(0xFFB9D6DA),
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(width: 12),
+          IconButton(
+            tooltip: 'Cerrar',
+            onPressed: _saving ? null : _close,
+            icon: const Icon(Icons.close),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sharedForm() {
+    return Form(
+      key: _formKey,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _modalLabel('Fecha'),
+            InkWell(
+              onTap: _saving ? null : _pickDate,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                child: Text(DateFormat('dd/MM/yyyy').format(_fecha)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _modalLabel('Usuario'),
+            InputDecorator(
+              decoration: const InputDecoration(
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              child: Text(widget.appState.user?.displayName ?? '-'),
+            ),
+            const SizedBox(height: 10),
+            _modalLabel('Linea'),
+            _modalDropdown(
+              value: _linea,
+              hint: 'Seleccione linea',
+              options: lineasDms,
+              onChanged: (value) => setState(() => _linea = value),
+            ),
+            const SizedBox(height: 10),
+            _modalLabel('Defecto'),
+            _modalDropdown(
+              value: _defecto,
+              hint: 'Selecciona un defecto',
+              options: defectosCatalogo,
+              onChanged: (value) => setState(() => _defecto = value),
+            ),
+            const SizedBox(height: 10),
+            _modalLabel('Ubicacion / componente'),
+            TextFormField(
+              controller: _ubicacionController,
+              enabled: !_saving,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                hintText: 'Ubicacion del defecto',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              validator: _required,
+              onChanged: (value) {
+                final upper = value.toUpperCase();
+                if (value == upper) return;
+                _ubicacionController.value = TextEditingValue(
+                  text: upper,
+                  selection: TextSelection.collapsed(offset: upper.length),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            _modalLabel('Area'),
+            _modalDropdown(
+              value: _area,
+              hint: 'Seleccione area',
+              options: areasDms,
+              onChanged: (value) => setState(() => _area = value),
+            ),
+            const SizedBox(height: 14),
+            _modalLabel('Codigo de pieza'),
+            TextFormField(
+              controller: _codigoController,
+              focusNode: _codigoFocusNode,
+              enabled: !_saving,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                hintText: 'Escanear o escribir',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              onFieldSubmitted: (_) => _addCodeToCart(),
+            ),
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(0, 48),
+                backgroundColor: _DefectsScreenState._green,
+              ),
+              onPressed: _adding || _saving ? null : _addCodeToCart,
+              icon: _adding
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.add_shopping_cart),
+              label: const Text(
+                'Agregar al carrito',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cartPanel() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: _DefectsScreenState._line),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 42,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: const BoxDecoration(
+              color: Color(0xFF424452),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+            ),
+            child: Row(
+              children: [
+                const Text(
+                  'Carrito de piezas',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const Spacer(),
+                Text(
+                  '${_cart.length} piezas',
+                  style: const TextStyle(
+                    color: Color(0xFFB8C4CB),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: _cart.isEmpty
+                ? const Center(
+                    child: Text(
+                      'Agrega piezas para confirmar el registro',
+                      style: TextStyle(
+                        color: Color(0xFFB8C4CB),
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(8),
+                    itemCount: _cart.length,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = _cart[index];
+                      return ListTile(
+                        dense: true,
+                        leading: CircleAvatar(
+                          radius: 15,
+                          backgroundColor: _DefectsScreenState._green,
+                          child: Text('${index + 1}'),
+                        ),
+                        title: Text(
+                          item.codigo,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        subtitle: Text(
+                          item.modelo.trim().isEmpty
+                              ? 'Sin modelo'
+                              : item.modelo,
+                        ),
+                        trailing: IconButton(
+                          tooltip: 'Quitar',
+                          onPressed: _saving
+                              ? null
+                              : () => setState(() => _cart.removeAt(index)),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _actions() {
+    return Container(
+      height: 74,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF2F3340),
+        border: Border(top: BorderSide(color: _DefectsScreenState._line)),
+      ),
+      child: Row(
+        children: [
+          Text(
+            _registeredCount == 0
+                ? '${_cart.length} pendientes'
+                : 'Registradas: $_registeredCount | pendientes: ${_cart.length}',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const Spacer(),
+          OutlinedButton.icon(
+            onPressed: _saving ? null : _close,
+            icon: const Icon(Icons.close),
+            label: const Text('Cancelar'),
+          ),
+          const SizedBox(width: 12),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size(180, 48),
+              backgroundColor: _DefectsScreenState._green,
+            ),
+            onPressed: _saving || _cart.isEmpty ? null : _confirmBatch,
+            icon: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check_circle_outline),
+            label: const Text(
+              'Confirmar registro',
+              style: TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _modalLabel(String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(value, style: const TextStyle(fontWeight: FontWeight.w900)),
+    );
+  }
+
+  Widget _modalDropdown({
+    required String? value,
+    required String hint,
+    required List<String> options,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return DropdownButtonFormField<String>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        hintText: hint,
+        isDense: true,
+        border: const OutlineInputBorder(),
+      ),
+      items: options
+          .map(
+            (item) => DropdownMenuItem(
+              value: item,
+              child: Text(item, overflow: TextOverflow.ellipsis),
+            ),
+          )
+          .toList(),
+      onChanged: _saving ? null : onChanged,
+      validator: (value) => value == null ? 'Requerido' : null,
+    );
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _fecha,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now().add(const Duration(days: 30)),
+    );
+    if (picked != null) setState(() => _fecha = picked);
+  }
+
+  Future<void> _addCodeToCart() async {
+    if (_adding || _saving) return;
+
+    final valid = _formKey.currentState?.validate() ?? true;
+    if (!valid) return;
+
+    final codigo = _normalizeCode(_codigoController.text);
+    if (codigo.isEmpty) {
+      _showSnack('Captura un codigo de pieza', error: true);
+      return;
+    }
+    if (_cart.any((item) => item.codigo == codigo)) {
+      _showSnack('El codigo ya esta en el carrito', error: true);
+      _codigoController.clear();
+      _codigoFocusNode.requestFocus();
+      return;
+    }
+
+    setState(() => _adding = true);
+    var modelo = '';
+    try {
+      if (codigo.length >= 3) {
+        modelo = await widget.appState.api.getModelo(codigo);
+      }
+    } on DmsException catch (error) {
+      _showSnack(error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _adding = false);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _cart.add(_BatchCartItem(codigo: codigo, modelo: modelo));
+      _codigoController.clear();
+    });
+    _codigoFocusNode.requestFocus();
+  }
+
+  Future<void> _confirmBatch() async {
+    final valid = _formKey.currentState?.validate() ?? true;
+    if (!valid) return;
+
+    final user = widget.appState.user;
+    if (user == null || !user.canCapture) {
+      _showSnack('Este usuario no puede capturar defectos', error: true);
+      return;
+    }
+    final etapa = user.etapaDeteccion;
+    if (etapa.isEmpty) {
+      _showSnack('Este rol no tiene etapa de deteccion', error: true);
+      return;
+    }
+    if (_cart.isEmpty) {
+      _showSnack('Agrega al menos una pieza al carrito', error: true);
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      for (final item in List<_BatchCartItem>.from(_cart)) {
+        final now = DateTime.now();
+        final fechaRegistro = DateTime(
+          _fecha.year,
+          _fecha.month,
+          _fecha.day,
+          now.hour,
+          now.minute,
+          now.second,
+        );
+        await widget.appState.api.createDefect({
+          'fecha': mysqlDateTime(fechaRegistro),
+          'linea': _linea,
+          'codigo': item.codigo,
+          'defecto': _defecto,
+          'ubicacion': _ubicacionController.text.trim().toUpperCase(),
+          'area': _area,
+          'modelo': item.modelo.trim(),
+          'tipo_inspeccion': _tipoInspeccion,
+          'etapa_deteccion': etapa,
+          'registrado_por': user.displayName,
+        });
+        if (!mounted) return;
+        setState(() {
+          _registeredCount++;
+          _cart.removeWhere((cartItem) => cartItem.codigo == item.codigo);
+        });
+      }
+      if (!mounted) return;
+      Navigator.pop(context, _registeredCount);
+    } on DmsException catch (error) {
+      _showSnack(error.message, error: true);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  void _close() {
+    Navigator.pop(context, _registeredCount == 0 ? null : _registeredCount);
+  }
+
+  String _normalizeCode(String value) {
+    final code = extractPartCode(value) ?? value;
+    return code.trim().toUpperCase();
+  }
+
+  String? _required(String? value) {
+    return value == null || value.trim().isEmpty ? 'Requerido' : null;
+  }
+
+  void _showSnack(String message, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(snack(message, error: error));
+  }
+}
+
+class _BatchCartItem {
+  const _BatchCartItem({required this.codigo, required this.modelo});
+
+  final String codigo;
+  final String modelo;
 }
 
 enum _UserMenuAction { logout }

@@ -5,6 +5,20 @@ import 'package:http/http.dart' as http;
 
 import 'models.dart';
 
+class DefectsPage {
+  const DefectsPage({
+    required this.items,
+    required this.total,
+    required this.page,
+    required this.pageSize,
+  });
+
+  final List<DefectItem> items;
+  final int total;
+  final int page;
+  final int pageSize;
+}
+
 class ApiClient {
   ApiClient({String? baseUrl}) : baseUrl = baseUrl ?? '';
 
@@ -33,6 +47,7 @@ class ApiClient {
     String? codigo,
     String? defecto,
     String? status,
+    int? limit,
   }) async {
     final data = await _send(
       'GET',
@@ -44,11 +59,64 @@ class ApiClient {
         'codigo': codigo,
         'defecto': defecto,
         'status': status,
+        'limit': limit == null ? null : '$limit',
       },
     );
     return (data as List)
         .map((item) => DefectItem.fromJson(item as Map<String, dynamic>))
         .toList();
+  }
+
+  Future<DefectsPage> getDefectsPage({
+    String? fechaInicio,
+    String? fechaFin,
+    String? linea,
+    String? codigo,
+    String? defecto,
+    String? status,
+    required int page,
+    required int pageSize,
+  }) async {
+    final data = await _send(
+      'GET',
+      '/defectos',
+      query: {
+        'fechaInicio': fechaInicio,
+        'fechaFin': fechaFin,
+        'linea': linea,
+        'codigo': codigo,
+        'defecto': defecto,
+        'status': status,
+        'page': '$page',
+        'pageSize': '$pageSize',
+      },
+    );
+
+    if (data is List) {
+      final items = data
+          .map((item) => DefectItem.fromJson(item as Map<String, dynamic>))
+          .toList();
+      return DefectsPage(
+        items: items,
+        total: items.length,
+        page: page,
+        pageSize: pageSize,
+      );
+    }
+
+    final payload = data as Map<String, dynamic>;
+    final rawItems = payload['data'];
+    final items = rawItems is List
+        ? rawItems
+              .map((item) => DefectItem.fromJson(item as Map<String, dynamic>))
+              .toList()
+        : <DefectItem>[];
+    return DefectsPage(
+      items: items,
+      total: _intValue(payload['total']),
+      page: _intValue(payload['page'], fallback: page),
+      pageSize: _intValue(payload['pageSize'], fallback: pageSize),
+    );
   }
 
   Future<void> createDefect(Map<String, dynamic> payload) async {
@@ -251,4 +319,9 @@ class ApiClient {
   Map<String, dynamic> _cleanBody(Map<String, dynamic> body) {
     return Map.fromEntries(body.entries.where((entry) => entry.value != null));
   }
+}
+
+int _intValue(Object? value, {int fallback = 0}) {
+  if (value is int) return value;
+  return int.tryParse('$value') ?? fallback;
 }
